@@ -434,38 +434,50 @@ export default function QuantumCoach() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
   const sendChat = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const msg = chatInput.trim();
-    setChatInput("");
-    setChat(c => [...c, { role: "user", content: msg }]);
-    setChatLoading(true);
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+  if (!chatInput.trim() || chatLoading) return;
+  const msg = chatInput.trim();
+  setChatInput("");
+  setChat(c => [...c, { role: "user", content: msg }]);
+  setChatLoading(true);
+  
+  const GEMINI_KEY = "AIzaSyDni3sKtIyG1sdIXMm9n-VASKyut1452po"; // ← ici
+  
+  try {
+    const history = chat.map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `Tu es le coach MQ de cet étudiant ISEN 3 pour l'exam Goguenheim du lundi 27/04/2026. Il part de ZÉRO et a moins de 48h. Profil : procrastinateur, distrait.
+          system_instruction: {
+            parts: [{ text: `Tu es le coach MQ de cet étudiant ISEN 3 pour l'exam Goguenheim du lundi 27/04/2026. Il part de ZÉRO et a moins de 48h. Profil : procrastinateur, distrait.
 
 Réponds TOUJOURS dans cet ordre :
 1. Analogie concrète ultra-simple (style enfant 10 ans, 2 phrases max)
-2. La formule / recette exacte à appliquer (encadrée ou en gras)
+2. La formule exacte à appliquer
 3. Mini-exemple numérique si possible
 
 Sois CONCIS (200 mots max), encourageant, utilise des émojis.
-Programme : E=hν−W, De Broglie λ=h/p, paquet d'ondes Δx·Δp≥ℏ/2, TISE, puits infini Eₙ=n²π²ℏ²/(2mL²), effet tunnel T≈e^{−2κa}, postulats Dirac (6), commutateurs [x,p]=iℏ, spin ½ matrices Pauli, Stern-Gerlach.
-PIÈGES FRÉQUENTS à rappeler : h vs ℏ, n≥1 puits infini, θ/2 spin, |c|²=c*c.`,
-          messages: chat.concat([{ role: "user", content: msg }]).map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await res.json();
-      setChat(c => [...c, { role: "assistant", content: data.content?.[0]?.text || "❌ Erreur de connexion." }]);
-    } catch {
-      setChat(c => [...c, { role: "assistant", content: "❌ Pas de connexion. Réessaie !" }]);
-    }
-    setChatLoading(false);
-  };
+Programme : E=hν−W, De Broglie λ=h/p, paquet d'ondes Δx·Δp≥ℏ/2, TISE, puits infini Eₙ=n²π²ℏ²/(2mL²), effet tunnel, postulats Dirac, spin ½ matrices Pauli, Stern-Gerlach.` }]
+          },
+          contents: [...history, { role: "user", parts: [{ text: msg }] }],
+          generationConfig: { maxOutputTokens: 600 }
+        })
+      }
+    );
+    const data = await res.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Erreur Gemini.";
+    setChat(c => [...c, { role: "assistant", content: reply }]);
+  } catch {
+    setChat(c => [...c, { role: "assistant", content: "❌ Vérifie ta clé API." }]);
+  }
+  setChatLoading(false);
+};
 
   const checkSlot = (id, slotXp) => {
     if (!checkedSlots[id]) setXp(x => x + slotXp);
